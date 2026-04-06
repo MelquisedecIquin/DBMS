@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Account System</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+    }
+    .menu-box {
+      background: white;
+      padding: 30px;
+      border-radius: 8px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+      width: 350px;
+    }
+    .menu-box h2 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .menu-box button {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      background: #0078d7;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .menu-box button:hover {
+      background: #005fa3;
+    }
+    .hidden { display: none; }
+    input {
+      width: 100%;
+      padding: 10px;
+      margin: 8px 0;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+    }
+    #output {
+      margin-top: 15px;
+      font-size: 0.9em;
+      color: #333;
+      word-break: break-word;
+    }
+  </style>
+</head>
+<body>
+  <div class="menu-box">
+    <h2>___ Account System ___</h2>
+    <div id="mainMenu">
+      <button onclick="showSignup()">Sign Up</button>
+      <button onclick="showLogin()">Log In</button>
+      <button onclick="exitSystem()">Exit</button>
+    </div>
+
+    <div id="signupForm" class="hidden">
+      <h3>Sign Up</h3>
+      <input type="text" id="signupUsername" placeholder="New Username">
+      <input type="password" id="signupPassword" placeholder="New Password">
+      <button onclick="signup()">Create Account</button>
+      <button onclick="backToMenu()">Back</button>
+    </div>
+
+    <div id="loginForm" class="hidden">
+      <h3>Log In</h3>
+      <input type="text" id="loginUsername" placeholder="Username">
+      <input type="password" id="loginPassword" placeholder="Password">
+      <button onclick="login()">Login</button>
+      <button onclick="backToMenu()">Back</button>
+    </div>
+
+    <div id="output"></div>
+  </div>
+
+  <script>
+    const userDB = {}; // simulated database
+
+    function showSignup() {
+      document.getElementById("mainMenu").classList.add("hidden");
+      document.getElementById("signupForm").classList.remove("hidden");
+    }
+
+    function showLogin() {
+      document.getElementById("mainMenu").classList.add("hidden");
+      document.getElementById("loginForm").classList.remove("hidden");
+    }
+
+    function backToMenu() {
+      document.getElementById("signupForm").classList.add("hidden");
+      document.getElementById("loginForm").classList.add("hidden");
+      document.getElementById("mainMenu").classList.remove("hidden");
+      document.getElementById("output").textContent = "";
+    }
+
+    function exitSystem() {
+      document.getElementById("output").textContent = "Exiting... Goodbye!";
+      document.getElementById("mainMenu").classList.add("hidden");
+    }
+
+    function isValidUsername(username) {
+      if (username.length < 6) return "Username must be at least 6 characters long.";
+      if (!/[A-Za-z]/.test(username)) return "Username must contain at least one letter.";
+      if (!/[0-9]/.test(username)) return "Username must contain at least one number.";
+      if (!/[!@#$%^&*]/.test(username)) return "Username must contain at least one special character (!@#$%^&*).";
+      return "Valid";
+    }
+
+    async function hashPassword(password) {
+      const encoder = new TextEncoder();
+      const data = encoder.encode(password);
+      const hashBuffer = await crypto.subtle.digest("SHA-256", data);
+      const hashArray = Array.from(new Uint8Array(hashBuffer));
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function signup() {
+      const username = document.getElementById("signupUsername").value;
+      const password = document.getElementById("signupPassword").value;
+      const validation = isValidUsername(username);
+
+      if (validation !== "Valid") {
+        document.getElementById("output").textContent = "Error: " + validation;
+        return;
+      }
+      if (userDB[username]) {
+        document.getElementById("output").textContent = "Warning: Username already exists.";
+        return;
+      }
+      const hashedPw = await hashPassword(password);
+      userDB[username] = hashedPw;
+      document.getElementById("output").textContent = "Account created successfully!";
+    }
+
+    async function login() {
+      const username = document.getElementById("loginUsername").value;
+      const password = document.getElementById("loginPassword").value;
+
+      if (!userDB[username]) {
+        document.getElementById("output").textContent = "Error: Username does not exist.";
+        return;
+      }
+      const hashedPw = await hashPassword(password);
+      if (hashedPw === userDB[username]) {
+        document.getElementById("output").textContent = "Login successful! Welcome, " + username;
+      } else {
+        document.getElementById("output").textContent = "Error: Incorrect password.";
+      }
+    }
+  </script>
+</body>
+</html>
