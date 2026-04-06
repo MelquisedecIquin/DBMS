@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHIVOLCS Earthquake Risk Mapping System</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+    <style>
+        /* ── Reset & base ─────────────────────────────────── */
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; display: flex; height: 100vh; overflow: hidden; background: #0f172a; color: #e2e8f0; }
+
+        /* ── Sidebar ───────────────────────────────────────── */
+        .sidebar {
+            width: 340px; min-width: 280px; display: flex; flex-direction: column;
+            background: #1e293b; border-right: 1px solid #334155; overflow: hidden;
+        }
+        .sidebar-header {
+            padding: 16px 18px; background: #0f172a; border-bottom: 1px solid #334155;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .sidebar-header h1 { font-size: 15px; font-weight: 700; line-height: 1.3; }
+        .sidebar-header span { font-size: 22px; }
+
+        /* Tabs */
+        .tabs { display: flex; background: #0f172a; border-bottom: 1px solid #334155; }
+        .tab-btn {
+            flex: 1; padding: 10px 4px; font-size: 11px; font-weight: 600;
+            background: none; border: none; color: #64748b; cursor: pointer;
+            border-bottom: 2px solid transparent; transition: all .2s;
+        }
+        .tab-btn.active { color: #38bdf8; border-bottom-color: #38bdf8; }
+        .tab-btn:hover:not(.active) { color: #94a3b8; }
+
+        .tab-panel { display: none; flex: 1; overflow-y: auto; padding: 14px; }
+        .tab-panel.active { display: block; }
+
+        /* Form elements */
+        label { display: block; font-size: 11px; font-weight: 600; color: #94a3b8; margin-bottom: 4px; }
+        input, select {
+            width: 100%; padding: 8px 10px; background: #0f172a; border: 1px solid #334155;
+            border-radius: 6px; color: #e2e8f0; font-size: 13px; margin-bottom: 10px; outline: none;
+        }
+        input:focus, select:focus { border-color: #38bdf8; }
+        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+        /* Buttons */
+        .btn {
+            width: 100%; padding: 9px; border-radius: 6px; border: none;
+            font-size: 13px; font-weight: 600; cursor: pointer; transition: all .2s;
+        }
+        .btn-primary   { background: #2563eb; color: #fff; }
+        .btn-primary:hover { background: #1d4ed8; }
+        .btn-success   { background: #16a34a; color: #fff; }
+        .btn-success:hover { background: #15803d; }
+        .btn-danger    { background: #dc2626; color: #fff; }
+        .btn-danger:hover  { background: #b91c1c; }
+        .btn-secondary { background: #334155; color: #e2e8f0; }
+        .btn-secondary:hover { background: #475569; }
+        .btn + .btn { margin-top: 6px; }
+
+        /* Info / result box */
+        .info-box {
+            background: #0f172a; border: 1px solid #334155; border-radius: 8px;
+            padding: 12px; font-size: 13px; line-height: 1.7; margin-top: 12px;
+        }
+        .info-box b { color: #94a3b8; font-weight: 600; }
+
+        /* Risk badges */
+        .badge {
+            display: inline-block; padding: 2px 8px; border-radius: 999px;
+            font-size: 11px; font-weight: 700;
+        }
+        .badge-low       { background: #16a34a; color: #fff; }
+        .badge-moderate  { background: #ca8a04; color: #fff; }
+        .badge-high      { background: #ea580c; color: #fff; }
+        .badge-very-high { background: #dc2626; color: #fff; }
+
+        /* Earthquake list */
+        .eq-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+        .eq-item {
+            background: #0f172a; border: 1px solid #334155; border-radius: 6px;
+            padding: 8px 10px; font-size: 12px; cursor: pointer; transition: border-color .2s;
+        }
+        .eq-item:hover { border-color: #38bdf8; }
+        .eq-item .eq-meta { color: #64748b; font-size: 11px; }
+        .eq-item .eq-mag  { font-size: 18px; font-weight: 800; }
+
+        /* Pagination */
+        .pagination { display: flex; gap: 6px; margin-top: 10px; justify-content: center; }
+        .page-btn {
+            padding: 5px 12px; background: #334155; border: none; border-radius: 4px;
+            color: #e2e8f0; cursor: pointer; font-size: 12px;
+        }
+        .page-btn:disabled { opacity: .4; cursor: default; }
+        .page-info { font-size: 12px; color: #64748b; align-self: center; }
+
+        /* Stats grid */
+        .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+        .stat-card { background: #0f172a; border: 1px solid #334155; border-radius: 8px; padding: 12px; text-align: center; }
+        .stat-card .stat-val { font-size: 22px; font-weight: 800; color: #38bdf8; }
+        .stat-card .stat-lbl { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+        /* CRUD modal */
+        .modal-overlay {
+            display: none; position: fixed; inset: 0; background: rgba(0,0,0,.6);
+            z-index: 9999; align-items: center; justify-content: center;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: #1e293b; border: 1px solid #334155; border-radius: 12px;
+            padding: 24px; width: min(480px, 94vw); max-height: 90vh; overflow-y: auto;
+        }
+        .modal h2 { font-size: 16px; margin-bottom: 16px; }
+        .modal-footer { display: flex; gap: 8px; margin-top: 16px; }
+        .modal-footer .btn { flex: 1; }
+
+        /* Map */
+        #map { flex: 1; }
+
+        /* Toast */
+        .toast {
+            position: fixed; bottom: 20px; right: 20px; background: #1e293b;
+            border: 1px solid #334155; border-radius: 8px; padding: 12px 18px;
+            font-size: 13px; z-index: 10000; transition: opacity .3s;
+            display: none;
+        }
+        .toast.show { display: block; }
+        .toast.success { border-left: 4px solid #16a34a; }
+        .toast.error   { border-left: 4px solid #dc2626; }
+
+        /* Spinner */
+        .spinner { text-align: center; padding: 20px; color: #64748b; }
+
+        /* Section heading */
+        .section-title { font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: .08em; margin: 12px 0 6px; }
+    </style>
+</head>
+<body>
+
+<!-- ════════════════════════════ SIDEBAR ════════════════════════════ -->
+<div class="sidebar">
+    <div class="sidebar-header">
+        <span>🌋</span>
+        <h1>PHIVOLCS Earthquake<br>Risk Mapping System</h1>
+    </div>
+
+    <div class="tabs">
+        <button class="tab-btn active" onclick="switchTab('search')">🔍 Search</button>
+        <button class="tab-btn" onclick="switchTab('list')">📋 Records</button>
+        <button class="tab-btn" onclick="switchTab('stats')">📊 Stats</button>
+        <button class="tab-btn" onclick="switchTab('manage')">⚙️ Manage</button>
+    </div>
+
+    <!-- ── TAB: SEARCH ─────────────────────────────────── -->
+    <div id="tab-search" class="tab-panel active">
+        <div class="section-title">Coordinates</div>
+        <div class="row-2">
+            <div>
+                <label>Latitude</label>
+                <input id="lat" type="number" step="any" placeholder="14.5995">
+            </div>
+            <div>
+                <label>Longitude</label>
+                <input id="lng" type="number" step="any" placeholder="120.9842">
+            </div>
+        </div>
+        <label>Search radius (°)</label>
+        <input id="radius" type="number" step="0.1" value="0.5" min="0.05" max="5">
+        <button class="btn btn-primary" onclick="searchNearby()">📍 Search / Assess Location</button>
+
+        <div id="search-result" class="info-box" style="display:none"></div>
+    </div>
+
+    <div id="tab-list" class="tab-panel">
+        <div class="section-title">Filters</div>
+        <label>Location (province / city)</label>
+        <input id="f-location" placeholder="e.g. Batangas">
+        <div class="row-2">
+            <div>
+                <label>Min Mag</label>
+                <input id="f-minmag" type="number" step="0.1" placeholder="0">
+            </div>
+            <div>
+                <label>Max Mag</label>
+                <input id="f-maxmag" type="number" step="0.1" placeholder="10">
+            </div>
+        </div>
+        <label>Risk Level</label>
+        <select id="f-risk">
+            <option value="">All</option>
+            <option>Low</option>
+            <option>Moderate</option>
+            <option>High</option>
+            <option>Very High</option>
+        </select>
+        <div class="row-2">
+            <div>
+                <label>Date from</label>
+                <input id="f-datefrom" type="date">
+            </div>
+            <div>
+                <label>Date to</label>
+                <input id="f-dateto" type="date">
+            </div>
+        </div>
+        <label>Sort by</label>
+        <select id="f-sort">
+            <option value="date_desc">Date (newest)</option>
+            <option value="date_asc">Date (oldest)</option>
+            <option value="mag_desc">Magnitude (highest)</option>
+            <option value="mag_asc">Magnitude (lowest)</option>
+        </select>
+        <button class="btn btn-primary" onclick="loadList(1)">🔍 Apply Filters</button>
+
+        <div id="eq-list-container"></div>
+        <div class="pagination" id="pagination"></div>
+    </div>
+
+    <div id="tab-stats" class="tab-panel">
+        <div class="spinner" id="stats-spinner">Loading stats…</div>
+        <div id="stats-content" style="display:none"></div>
+    </div>
+
+    <div id="tab-manage" class="tab-panel">
+        <div class="section-title">Earthquake Records</div>
+        <button class="btn btn-success" onclick="openCreateModal()">➕ Add Earthquake Record</button>
+
+        <div class="section-title" style="margin-top:16px">Find record by ID</div>
+        <div class="row-2">
+            <div>
+                <label>Record ID</label>
+                <input id="crud-id" type="number" placeholder="e.g. 42">
+            </div>
+            <div style="padding-top:20px">
+                <button class="btn btn-secondary" onclick="loadForEdit()">Load</button>
+            </div>
+        </div>
+        <div id="crud-result"></div>
+    </div>
+</div>
+
+
+<div id="map"></div>
+
+
+<div class="modal-overlay" id="modal">
+    <div class="modal">
+        <h2 id="modal-title">Add Earthquake Record</h2>
+        <input id="m-id" type="hidden">
+
+        <label>Date &amp; Time (PH)</label>
+        <input id="m-datetime" type="datetime-local">
+
+        <div class="row-2">
+            <div>
+                <label>Latitude</label>
+                <input id="m-lat" type="number" step="any">
+            </div>
+            <div>
+                <label>Longitude</label>
+                <input id="m-lng" type="number" step="any">
+            </div>
+        </div>
+        <div class="row-2">
+            <div>
+                <label>Magnitude</label>
+                <input id="m-mag" type="number" step="0.1">
+            </div>
+            <div>
+                <label>Depth (km)</label>
+                <input id="m-depth" type="number" step="0.1">
+            </div>
+        </div>
+        <label>Location description</label>
+        <input id="m-location" placeholder="e.g. 010 km N of City of Mati (Davao Oriental)">
+        <div class="row-2">
+            <div>
+                <label>Specific location</label>
+                <input id="m-spec" placeholder="City of Mati">
+            </div>
+            <div>
+                <label>General location</label>
+                <input id="m-gen" placeholder="Davao Oriental">
+            </div>
+        </div>
+
+        <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+            <button class="btn btn-success" id="modal-save-btn" onclick="saveRecord()">Save</button>
+        </div>
+    </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script>
+
+const API = "http://localhost:5000/api";  
+
+
+const map = L.map("map").setView([12.8797, 121.7740], 6);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors"
+}).addTo(map);
+
+let markers = L.layerGroup().addTo(map);
+let pinMarker = null;
+let currentPage = 1;
+
+
+fetch(`${API}/faults/geojson`)
+    .then(r => r.json())
+    .then(data => {
+        L.geoJSON(data, {
+            style: { color: "#ef4444", weight: 2, opacity: 0.7 },
+            onEachFeature(feat, layer) {
+                layer.bindPopup(`<b>🔴 ${feat.properties.name}</b><br>
+                    Type: ${feat.properties.slip_type || "N/A"}`);
+            }
+        }).addTo(map);
+    })
+    .catch(() => console.warn("Could not load fault GeoJSON from API"));
+
+
+map.on("click", e => {
+    document.getElementById("lat").value = e.latlng.lat.toFixed(5);
+    document.getElementById("lng").value = e.latlng.lng.toFixed(5);
+    switchTab("search");
+    searchNearby();
+});
+
+
+function switchTab(id) {
+    document.querySelectorAll(".tab-btn").forEach((b, i) => {
+        b.classList.toggle("active", ["search","list","stats","manage"][i] === id);
+    });
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    document.getElementById(`tab-${id}`).classList.add("active");
+    if (id === "stats") loadStats();
+    if (id === "list")  loadList(1);
+}
+
+function toast(msg, type = "success") {
+    const el = document.getElementById("toast");
+    el.textContent = msg;
+    el.className = `toast ${type} show`;
+    setTimeout(() => el.classList.remove("show"), 3500);
+}
+
+function riskBadge(level) {
+    const cls = {
+        "Low": "low", "Moderate": "moderate",
+        "High": "high", "Very High": "very-high"
+    }[level] || "low";
+    return `<span class="badge badge-${cls}">${level || "N/A"}</span>`;
+}
+
+
+function markerColor(level) {
+    return { Low: "#22c55e", Moderate: "#eab308", High: "#f97316", "Very High": "#ef4444" }[level] || "#64748b";
+}
+
+function coloredIcon(color) {
+    return L.divIcon({
+        html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid #fff;"></div>`,
+        className: "", iconSize: [12, 12], iconAnchor: [6, 6]
+    });
+}
+
+async function searchNearby() {
+    const lat = parseFloat(document.getElementById("lat").value);
+    const lng = parseFloat(document.getElementById("lng").value);
+    const r   = parseFloat(document.getElementById("radius").value) || 0.5;
+
+    if (isNaN(lat) || isNaN(lng)) { toast("Enter valid coordinates", "error"); return; }
+
+    const box = document.getElementById("search-result");
+    box.style.display = "block";
+    box.innerHTML = "<div class='spinner'>Querying database…</div>";
+
+    map.setView([lat, lng], 10);
+    if (pinMarker) map.removeLayer(pinMarker);
+    pinMarker = L.marker([lat, lng]).addTo(map).bindPopup("📍 Selected location").openPopup();
+
+     /* Read(Search) */
+    try {
+        const res  = await fetch(`${API}/nearby?lat=${lat}&lng=${lng}&radius_deg=${r}&limit=1`);
+        const data = await res.json();
+
+        markers.clearLayers();
+
+        if (!data.results || data.results.length === 0) {
+            box.innerHTML = `<b>No earthquakes found</b> within ${r}° of this point.<br>
+                <span style="color:#64748b">Try increasing the search radius.</span>`;
+            return;
+        }
+
+        const eq = data.results[0];
+        box.innerHTML = `
+            <b>📅 Date/Time:</b> ${eq.date_time_ph}<br>
+            <b>📍 Coordinates:</b> ${eq.latitude?.toFixed(4)}, ${eq.longitude?.toFixed(4)}<br>
+            <b>💪 Magnitude:</b> ${eq.magnitude}<br>
+            <b>⬇️ Depth:</b> ${eq.depth_km ?? "N/A"} km<br>
+            <b>📌 Location:</b> ${eq.specific_location || "N/A"}, ${eq.general_location || "N/A"}<br>
+            <b>🔴 Nearest Fault:</b> ${eq.fault_name || "Unknown"}<br>
+            <b>⚠️ Risk Level:</b> ${riskBadge(eq.risk_level)}<br>
+            <b>💬</b> ${eq.risk_description || ""}
+        `;
+
+        const allRes = await fetch(`${API}/nearby?lat=${lat}&lng=${lng}&radius_deg=${r}&limit=100`);
+        const allData = await allRes.json();
+        (allData.results || []).forEach(e => {
+            const m = L.circleMarker([e.latitude, e.longitude], {
+                radius: 5 + (e.magnitude || 0),
+                fillColor: markerColor(e.risk_level),
+                color: "#fff", weight: 1, opacity: 1, fillOpacity: 0.8
+            });
+            m.bindPopup(`<b>M${e.magnitude}</b><br>${e.date_time_ph}<br>
+                Depth: ${e.depth_km ?? "N/A"} km<br>
+                ${e.fault_name || ""}<br>${riskBadge(e.risk_level)}`);
+            markers.addLayer(m);
+        });
+
+    } catch(err) {
+        box.innerHTML = `<span style="color:#ef4444">Error: ${err.message}</span>`;
+    }
+}
+
+async function loadList(page = 1) {
+    currentPage = page;
+    const container = document.getElementById("eq-list-container");
+    const pagination = document.getElementById("pagination");
+    container.innerHTML = "<div class='spinner'>Loading records…</div>";
+    pagination.innerHTML = "";
+
+    const params = new URLSearchParams({
+        page,
+        limit: 20,
+        sort: document.getElementById("f-sort").value,
+    });
+    const loc  = document.getElementById("f-location").value.trim();
+    const minm = document.getElementById("f-minmag").value;
+    const maxm = document.getElementById("f-maxmag").value;
+    const risk = document.getElementById("f-risk").value;
+    const df   = document.getElementById("f-datefrom").value;
+    const dt   = document.getElementById("f-dateto").value;
+
+    if (loc)  params.set("location", loc);
+    if (minm) params.set("min_mag", minm);
+    if (maxm) params.set("max_mag", maxm);
+    if (risk) params.set("risk", risk);
+    if (df)   params.set("date_from", df);
+    if (dt)   params.set("date_to", dt);
+
+     /* Read(List Records) */
+    try {
+        const res  = await fetch(`${API}/earthquakes?${params}`);
+        const data = await res.json();
+
+        if (!data.results?.length) {
+            container.innerHTML = "<div class='info-box'>No records found.</div>";
+            return;
+        }
+
+        container.innerHTML = `
+            <div class="section-title">${data.total.toLocaleString()} total records</div>
+            <div class="eq-list">
+                ${data.results.map(eq => `
+                    <div class="eq-item" onclick="flyToEq(${eq.latitude},${eq.longitude},${eq.magnitude},${eq.id})">
+                        <div style="display:flex;justify-content:space-between;align-items:center">
+                            <span class="eq-mag" style="color:${markerColor(eq.risk_level)}">${eq.magnitude}</span>
+                            ${riskBadge(eq.risk_level)}
+                        </div>
+                        <div>${eq.specific_location || ""}, ${eq.general_location || ""}</div>
+                        <div class="eq-meta">${eq.date_time_ph} · Depth: ${eq.depth_km ?? "N/A"} km · ${eq.fault_name || "Unknown fault"}</div>
+                    </div>
+                `).join("")}
+            </div>
+        `;
+
+        if (data.pages > 1) {
+            pagination.innerHTML = `
+                <button class="page-btn" onclick="loadList(${page-1})" ${page<=1?"disabled":""}>‹ Prev</button>
+                <span class="page-info">Page ${page} / ${data.pages}</span>
+                <button class="page-btn" onclick="loadList(${page+1})" ${page>=data.pages?"disabled":""}>Next ›</button>
+            `;
+        }
+    } catch(err) {
+        container.innerHTML = `<div class="info-box" style="color:#ef4444">Error: ${err.message}</div>`;
+    }
+}
+
+function flyToEq(lat, lng, mag, id) {
+    map.setView([lat, lng], 11);
+    markers.clearLayers();
+    const m = L.circleMarker([lat, lng], {
+        radius: 8 + mag, fillColor: "#38bdf8",
+        color: "#fff", weight: 2, fillOpacity: 0.9
+    });
+    m.bindPopup(`Record #${id}<br>M${mag}`).openPopup();
+    markers.addLayer(m);
+}
+
+async function loadStats() {
+    const spinner = document.getElementById("stats-spinner");
+    const content = document.getElementById("stats-content");
+    spinner.style.display = "block";
+    content.style.display = "none";
+
+    try {
+        const res  = await fetch(`${API}/stats`);
+        const d    = await res.json();
+        const risk = d.risk_distribution || {};
+
+        content.innerHTML = `
+            <div class="stats-grid">
+                <div class="stat-card"><div class="stat-val">${(d.total_earthquakes||0).toLocaleString()}</div><div class="stat-lbl">Total Earthquakes</div></div>
+                <div class="stat-card"><div class="stat-val">${d.total_fault_lines||0}</div><div class="stat-lbl">Fault Lines</div></div>
+                <div class="stat-card"><div class="stat-val" style="color:#ef4444">${(risk["Very High"]||0).toLocaleString()}</div><div class="stat-lbl">Very High Risk</div></div>
+                <div class="stat-card"><div class="stat-val" style="color:#f97316">${(risk["High"]||0).toLocaleString()}</div><div class="stat-lbl">High Risk</div></div>
+            </div>
+
+            <div class="section-title">Risk Distribution</div>
+            ${Object.entries(risk).map(([k,v]) => `
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+                    ${riskBadge(k)}
+                    <div style="flex:1;background:#0f172a;border-radius:4px;height:8px">
+                        <div style="width:${Math.round(v/d.total_earthquakes*100)}%;background:${markerColor(k)};height:8px;border-radius:4px"></div>
+                    </div>
+                    <span style="font-size:12px;color:#94a3b8">${v.toLocaleString()}</span>
+                </div>
+            `).join("")}
+
+            <div class="section-title">Top Locations</div>
+            ${(d.top_locations||[]).slice(0,5).map((l,i) => `
+                <div style="font-size:12px;display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid #1e293b">
+                    <span>${i+1}. ${l.general_location}</span>
+                    <span style="color:#38bdf8">${l.cnt.toLocaleString()}</span>
+                </div>
+            `).join("")}
+
+            <div class="section-title">Strongest on Record</div>
+            ${(d.strongest_earthquakes||[]).map(e => `
+                <div style="font-size:12px;padding:4px 0;border-bottom:1px solid #1e293b">
+                    <b style="color:#ef4444">M${e.magnitude}</b> — ${e.location || ""}
+                    <div style="color:#64748b">${e.date_time_ph}</div>
+                </div>
+            `).join("")}
+        `;
+        spinner.style.display = "none";
+        content.style.display = "block";
+    } catch(err) {
+        spinner.textContent = "Failed to load stats.";
+    }
+}
+
+async function loadForEdit() {
+    const id = document.getElementById("crud-id").value;
+    if (!id) { toast("Enter a record ID", "error"); return; }
+
+     /* Read(Single Record) */
+    const res  = await fetch(`${API}/earthquakes/${id}`);
+    const data = await res.json();
+    if (data.error) { toast(data.error, "error"); return; }
+
+    const box = document.getElementById("crud-result");
+    box.innerHTML = `
+        <div class="info-box">
+            <b>ID ${data.id}</b> · M${data.magnitude} · ${riskBadge(data.risk_level)}<br>
+            <b>Date:</b> ${data.date_time_ph}<br>
+            <b>Location:</b> ${data.specific_location || ""}, ${data.general_location || ""}<br>
+            <b>Fault:</b> ${data.fault_name || "Unknown"}<br>
+            <div style="display:flex;gap:6px;margin-top:10px">
+                <button class="btn btn-primary" style="flex:1" onclick="openEditModal(${id})">✏️ Edit</button>
+                <button class="btn btn-danger"  style="flex:1" onclick="deleteRecord(${id})">🗑 Delete</button>
+            </div>
+        </div>
+    `;
+}
+
+ /* Delete */
+async function deleteRecord(id) {
+    if (!confirm(`Delete earthquake record #${id}? This cannot be undone.`)) return;
+    const res  = await fetch(`${API}/earthquakes/${id}`, { method: "DELETE" });
+    const data = await res.json();
+    if (res.ok) {
+        toast("Record deleted successfully");
+        document.getElementById("crud-result").innerHTML = "";
+        document.getElementById("crud-id").value = "";
+    } else {
+        toast(data.error || "Delete failed", "error");
+    }
+}
+
+function openCreateModal() {
+    document.getElementById("modal-title").textContent = "➕ Add Earthquake Record";
+    document.getElementById("modal-save-btn").textContent = "Create Record";
+    document.getElementById("m-id").value = "";
+    ["m-datetime","m-lat","m-lng","m-mag","m-depth","m-location","m-spec","m-gen"]
+        .forEach(id => document.getElementById(id).value = "");
+    document.getElementById("modal").classList.add("open");
+}
+
+ /* Read(For Edit) */
+async function openEditModal(id) {
+    const res  = await fetch(`${API}/earthquakes/${id}`);
+    const data = await res.json();
+    if (data.error) { toast(data.error, "error"); return; }
+
+    document.getElementById("modal-title").textContent = `✏️ Edit Record #${id}`;
+    document.getElementById("modal-save-btn").textContent = "Save Changes";
+    document.getElementById("m-id").value       = id;
+    document.getElementById("m-datetime").value = data.date_time_ph?.replace(" ","T").slice(0,16) || "";
+    document.getElementById("m-lat").value      = data.latitude    || "";
+    document.getElementById("m-lng").value      = data.longitude   || "";
+    document.getElementById("m-mag").value      = data.magnitude   || "";
+    document.getElementById("m-depth").value    = data.depth_km    || "";
+    document.getElementById("m-location").value = data.location    || "";
+    document.getElementById("m-spec").value     = data.specific_location || "";
+    document.getElementById("m-gen").value      = data.general_location  || "";
+    document.getElementById("modal").classList.add("open");
+}
+
+function closeModal() {
+    document.getElementById("modal").classList.remove("open");
+}
+
+async function saveRecord() {
+    const id = document.getElementById("m-id").value;
+    const body = {
+        date_time_ph:       document.getElementById("m-datetime").value.replace("T"," "),
+        latitude:           parseFloat(document.getElementById("m-lat").value),
+        longitude:          parseFloat(document.getElementById("m-lng").value),
+        magnitude:          parseFloat(document.getElementById("m-mag").value),
+        depth_km:           parseFloat(document.getElementById("m-depth").value) || null,
+        location:           document.getElementById("m-location").value || null,
+        specific_location:  document.getElementById("m-spec").value || null,
+        general_location:   document.getElementById("m-gen").value || null,
+    };
+
+    if (!body.date_time_ph || isNaN(body.latitude) || isNaN(body.longitude) || isNaN(body.magnitude)) {
+        toast("Date, lat, lng, and magnitude are required", "error");
+        return;
+    }
+     /* Create and Update*/
+    const url    = id ? `${API}/earthquakes/${id}` : `${API}/earthquakes`;
+    const method = id ? "PUT" : "POST";
+
+    const res  = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+    });
+    const data = await res.json();
+
+    if (res.ok) {
+        toast(id ? "Record updated!" : `Record created (ID: ${data.id})`);
+        closeModal();
+        document.getElementById("crud-id").value = data.id || id;
+        if (!id) document.getElementById("crud-result").innerHTML = "";
+    } else {
+        toast(data.error || "Save failed", "error");
+    }
+}
+</script>
+</body>
+</html>
