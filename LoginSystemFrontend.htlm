@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Account System</title>
+
+<style>
+body {
+  font-family: Arial, sans-serif;
+  background: linear-gradient(135deg, #0078d7, #c1281d);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  margin: 0;
+}
+
+.container {
+  background: white;
+  padding: 30px;
+  border-radius: 12px;
+  width: 350px;
+  box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+  text-align: center;
+}
+
+h2 {
+  margin-bottom: 20px;
+}
+
+input {
+  width: 100%;
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+button {
+  width: 100%;
+  padding: 10px;
+  margin-top: 10px;
+  border: none;
+  border-radius: 6px;
+  background: #0078d7;
+  color: white;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+button:hover {
+  background: #005fa3;
+}
+
+.link-btn {
+  background: none;
+  color: #0078d7;
+  border: none;
+  margin-top: 10px;
+  cursor: pointer;
+}
+
+.hidden {
+  display: none;
+}
+
+#message {
+  margin-top: 15px;
+  font-size: 0.9em;
+}
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+  <h2 id="title">Account System</h2>
+
+  <!-- LOGIN -->
+  <div id="loginBox">
+    <input id="loginUser" placeholder="Username">
+    <input id="loginPass" type="password" placeholder="Password">
+    <button onclick="login()">Login</button>
+    <button class="link-btn" onclick="showSignup()">Create Account</button>
+  </div>
+
+  <!-- SIGNUP -->
+  <div id="signupBox" class="hidden">
+    <input id="signupUser" placeholder="Username">
+    <input id="signupPass" type="password" placeholder="Password">
+    <button onclick="signup()">Sign Up</button>
+    <button class="link-btn" onclick="showLogin()">Back to Login</button>
+  </div>
+
+  <div id="message"></div>
+
+</div>
+
+<script>
+const API_URL = "http://127.0.0.1:5000"; // Flask backend
+
+function showSignup() {
+  loginBox.classList.add("hidden");
+  signupBox.classList.remove("hidden");
+  title.textContent = "Create Account";
+  message.textContent = "";
+}
+
+function showLogin() {
+  signupBox.classList.add("hidden");
+  loginBox.classList.remove("hidden");
+  title.textContent = "Account System";
+  message.textContent = "";
+}
+
+// SIGNUP FOR USER'S NEW ACCOUNT
+async function signup() {
+  const username = signupUser.value.trim();
+  const password = signupPass.value.trim();
+
+  if (!username || !password) {
+    message.textContent = "Please fill all fields.";
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL + "/signup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+    message.textContent = data.message;
+
+  } catch (err) {
+    message.textContent = "Server error. Make sure backend is running.";
+  }
+}
+
+// LOGIN USER'S EXISTING ACCOUNT
+async function login() {
+  const username = loginUser.value.trim();
+  const password = loginPass.value.trim();
+
+  if (!username || !password) {
+    message.textContent = "Please fill all fields.";
+    return;
+  }
+
+  try {
+    const res = await fetch(API_URL + "/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password })
+    });
+
+    const data = await res.json();
+    message.textContent = data.message;
+
+  } catch (err) {
+    message.textContent = "Server error. Make sure backend is running.";
+  }
+}
+</script>
+
+</body>
+</html>
