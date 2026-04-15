@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -441,12 +442,15 @@ async function loadList(page = 1) {
         sort: document.getElementById("f-sort").value,
     });
     const loc  = document.getElementById("f-location").value.trim();
+    const normalizedloc = loc.replace(/ ,/g, ''). replace(/\s+/g,'').trim();
+    //added normalizing bits
     const minm = document.getElementById("f-minmag").value;
     const maxm = document.getElementById("f-maxmag").value;
     const risk = document.getElementById("f-risk").value;
     const df   = document.getElementById("f-datefrom").value;
     const dt   = document.getElementById("f-dateto").value;
-
+    
+    if (normalizedloc) params.set("location", normalizedloc);
     if (loc)  params.set("location", loc);
     if (minm) params.set("min_mag", minm);
     if (maxm) params.set("max_mag", maxm);
