@@ -142,9 +142,11 @@ def list_earthquakes():
         conditions.append("e.risk_level = %s")
         params.append(p["risk"])
     if p.get("location"):
-        conditions.append("(e.general_location LIKE %s OR e.specific_location LIKE %s)")
-        like = f"%{p['location']}%"
-        params += [like, like]
+        loc_terms = p["location".replace(",", " ")]
+        for term in loc_terms:
+            like = f"%{term}%"
+            conditions.append("(e.general_location LIKE %s OR e.specific_location LIKE %s)")
+            params += [like, like]
     if p.get("date_from"):
         conditions.append("e.date_time_ph >= %s")
         params.append(p["date_from"])
@@ -352,7 +354,6 @@ def list_faults():
         conn.close()
     return json_response(rows)
 
-
 @app.route("/api/faults/<int:fid>", methods=["GET"])
 def get_fault(fid):
     conn = get_conn()
@@ -366,7 +367,6 @@ def get_fault(fid):
     if not rows:
         return json_response({"error": "Not found"}, 404)
     return json_response(rows[0])
-
 
 @app.route("/api/faults", methods=["POST"])
 def create_fault():
@@ -403,7 +403,6 @@ def create_fault():
         conn.close()
     return json_response({"id": new_id, "message": "Fault line created."}, 201)
 
-
 @app.route("/api/faults/<int:fid>", methods=["PUT"])
 def update_fault(fid):
     data = request.get_json(force=True)
@@ -434,7 +433,6 @@ def update_fault(fid):
         conn.close()
     return json_response({"message": "Fault updated."})
 
-
 @app.route("/api/faults/<int:fid>", methods=["DELETE"])
 def delete_fault(fid):
     conn = get_conn()
@@ -454,7 +452,6 @@ def delete_fault(fid):
         cur.close()
         conn.close()
     return json_response({"message": "Fault deleted."})
-
 
 @app.route("/api/nearby", methods=["GET"])
 def nearby():
@@ -497,7 +494,6 @@ def nearby():
         }.get(row.get("risk_level"), "Unknown")
 
     return json_response({"lat": lat, "lng": lng, "radius_deg": r, "results": rows})
-
 
 @app.route("/api/stats", methods=["GET"])
 def stats():
@@ -552,7 +548,6 @@ def stats():
         "strongest_earthquakes": strongest,
     })
 
-
 @app.route("/api/audit", methods=["GET"])
 def audit_log():
     lim = min(int(request.args.get("limit", 100)), 500)
@@ -567,7 +562,6 @@ def audit_log():
         cur.close()
         conn.close()
     return json_response(rows)
-
 
 @app.route("/api/faults/geojson", methods=["GET"])
 def faults_geojson():
